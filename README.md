@@ -1,14 +1,86 @@
-# Backtrack (Retroactive Audio Recorder)
+# ⏪ Backtrack (Retroactive Audio Recorder)
 
-**Backtrack** flips audio recording from predictive to retroactive. It continuously listens in a transient, rolling RAM buffer, acting as a personal audio cache. If nothing noteworthy occurs, the audio simply evaporates, overwritten in memory with **zero wear on phone flash storage**. If an epiphany, breakthrough discussion, off-hand instruction, or verbal agreement occurs, the user captures the audio that already happened (up to 10 minutes prior) with a single tap.
+<p align="center">
+  <img src="screenshots/Screenshot_20260927-160739.png" width="220" alt="Backtrack Listening Preview" />
+</p>
+
+<p align="center">
+  <b>The audio recorder that listens into the past. Capture breakthrough moments after they happen.</b>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Android_11--15-brightgreen.svg" alt="Android Version" />
+  <img src="https://img.shields.io/badge/Language-Kotlin_2.2-blue.svg" alt="Kotlin Version" />
+  <img src="https://img.shields.io/badge/UI-Jetpack_Compose_Material_3-purple.svg" alt="Compose UI" />
+  <img src="https://img.shields.io/badge/Audio-16kHz_16--bit_PCM-orange.svg" alt="Audio Specs" />
+  <img src="https://img.shields.io/badge/Storage-0%25_Disk_Wear_(RAM_Only)-red.svg" alt="Zero Disk Wear" />
+  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg" alt="PRs Welcome" />
+</p>
 
 ---
 
-## Architecture Overview
+## 💡 The Philosophy: Retroactive vs. Predictive Recording
+
+Most voice recorders require **predictive intent**: you must decide to record *before* an important moment happens. But in real life, the most critical audio moments occur unannounced:
+- A spontaneous creative epiphany while talking to yourself on your commute.
+- A sudden breakthrough whiteboard discussion with a colleague that turns into architecture planning.
+- Crucial verbal agreements or complex off-hand instructions you didn't anticipate needing notes on.
+
+By the time you unlock your phone, find an app, and tap record, **the moment is already gone**.
+
+**Backtrack flips this paradigm.** It continuously buffers audio in a transient, rolling RAM cache.
+- **If nothing noteworthy happens:** The audio simply evaporates, overwritten in memory with **zero wear on your phone's flash storage**.
+- **When something noteworthy happens:** Tap **"Save Last 5 Min"** or **"Save Full Buffer (10 Min)"** to retroactively crystallize what already occurred into high-quality `.wav` audio.
+
+---
+
+## 📱 Visual Showcase & Screenshots
+
+<table align="center">
+  <tr>
+    <td align="center" width="25%">
+      <b>1. Clean Dashboard (Idle)</b><br/><br/>
+      <img src="screenshots/Screenshot_20260927-160721.png" width="100%" alt="Idle Dashboard" /><br/><br/>
+      <sub>Minimalist Material 3 interface showing live RAM footprint and zero disk wear guarantee.</sub>
+    </td>
+    <td align="center" width="25%">
+      <b>2. Active RAM Buffering</b><br/><br/>
+      <img src="screenshots/Screenshot_20260927-160739.png" width="100%" alt="Active Buffer" /><br/><br/>
+      <sub>Real-time waveform, live buffer progress meter, and adaptive retroactive capture triggers.</sub>
+    </td>
+    <td align="center" width="25%">
+      <b>3. Lock Screen / Shade</b><br/><br/>
+      <img src="screenshots/Screenshot_20260927-160745.png" width="100%" alt="Notification Actions" /><br/><br/>
+      <sub>Save the last 5 or 10 minutes right from the notification shade without unlocking the phone.</sub>
+    </td>
+    <td align="center" width="25%">
+      <b>4. In-Line Player & Sharing</b><br/><br/>
+      <img src="screenshots/Screenshot_20260927-160803.png" width="100%" alt="Saved Captures & Player" /><br/><br/>
+      <sub>Listen back with interactive scrubbers and share to AI transcribers (Whisper/Gemini) in one tap.</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
+## 🌟 Key Features
+
+- 🧠 **Zero Flash Storage Wear**: All rolling audio lives exclusively in a synchronized RAM ring buffer. Your flash memory is only touched when you explicitly save a capture.
+- ⚡ **One-Tap Retroactive Save**: Grab the preceding 5 or 10 minutes of conversation on demand.
+- 🚗 **Lock Screen & Shade Actions**: Never fumble with app locks while driving or walking. Notification actions let you save audio instantly.
+- 🔋 **Battery Efficient & Doze-Resistant**: Uses an efficient `AudioRecord` read loop with `PARTIAL_WAKE_LOCK` and battery optimization exemption guidance so OEM battery killers won't kill your buffer.
+- 📞 **Intelligent Audio Focus Handling**: Automatically pauses recording when a regular cellular phone call, video camera, or voice assistant is active, and resumes immediately after.
+- 🎧 **Standard 44-byte RIFF/WAVE Format**: Saves pristine 16 kHz 16-bit Mono `.wav` files—the industry-standard format required by transcription engines (OpenAI Whisper, Google Cloud Speech-to-Text, local LLMs).
+- 🎵 **Built-In In-Line Player**: Scrub, seek, preview, and manage your captures directly within the app.
+- 📤 **Instant Android Share Sheet**: Share `.wav` files to Google Drive, Telegram, WhatsApp, Slack, or local transcription tools using secure `FileProvider` URIs.
+
+---
+
+## 🏗️ High-Level Technical Architecture
 
 ```
 [Hardware Mic] 
-      │ (Raw 16-bit PCM Byte Stream via AudioRecord @ 16 kHz Mono)
+      │ (Raw 16-bit PCM Stream via AudioRecord @ 16 kHz Mono)
       ▼
 [BacktrackService] ── (PARTIAL_WAKE_LOCK & AudioFocus Listener)
       │
@@ -24,67 +96,110 @@
 [Storage Engine] ── Write to app-specific Recordings directory (.wav)
       │
       ▼
-[Compose UI & Lock Screen Notification] ── Live Waveform, In-Line Playback, Share
+[Jetpack Compose UI & Notification] ── Live Waveform, Scrubber Player, File Sharing
 ```
 
 ---
 
-## Technical Specifications
+## 🔬 Audio Engineering Specs
 
-### 1. In-Memory Audio Ring Buffer (`audio/AudioRingBuffer.kt`)
-- **Audio Specs**: 16,000 Hz, 16-bit PCM, Mono channel.
-- **Throughput**: $16{,}000 \text{ samples/sec} \times 2 \text{ bytes/sample} = 32{,}000 \text{ bytes/sec}$.
-- **Buffer Capacity**: $32{,}000 \times 60 \times 10 = 19{,}200{,}000 \text{ bytes}$ (~18.31 MB).
-- **5-Minute Slice**: $32{,}000 \times 60 \times 5 = 9{,}600{,}000 \text{ bytes}$ (~9.15 MB).
-- **Concurrency**: Thread-safe synchronized writes and non-blocking ordered snapshot reads.
-- **Graceful Truncation**: Gracefully saves whatever audio is available if recording duration is under 5 or 10 minutes.
-
-### 2. Foreground Service & Hardware Handling (`service/BacktrackService.kt`)
-- **Service Type**: `android:foregroundServiceType="microphone"`.
-- **Power Management**: Holds `PowerManager.PARTIAL_WAKE_LOCK` while listening to prevent CPU sleep when screen locks.
-- **Audio Focus Management**: Reacts to `AudioManager.OnAudioFocusChangeListener` (`AUDIOFOCUS_LOSS`, `AUDIOFOCUS_LOSS_TRANSIENT`) by pausing `AudioRecord` during cellular phone calls, camera recording, or assistant interactions, and automatically resumes on `AUDIOFOCUS_GAIN`.
-- **Persistent Notification**: Ongoing, high-visibility notification with 3 direct lock-screen action buttons:
-  - `Save Last 5 Min` (`ACTION_SAVE_5`)
-  - `Save Last 10 Min` (`ACTION_SAVE_10`)
-  - `Stop Listening` (`ACTION_STOP`)
-
-### 3. WAV Export Engine (`audio/WavExporter.kt`)
-- **Format**: Uncompressed 16-bit PCM RIFF `.wav`.
-- **Header**: Standard 44-byte RIFF header (16 kHz, 1 channel, 16-bit sample, 32,000 byte rate).
-- **Output Directory**: `context.getExternalFilesDir(Environment.DIRECTORY_RECORDINGS)/Backtrack_YYYYMMDD_HHmmss.wav`.
-- **Haptic Confirmation**: Vibrates via `VibrationHelper` upon successful export.
-
-### 4. Modern Jetpack Compose UI (`ui/BacktrackScreen.kt`)
-- **Status Dashboard**: Live multi-bar waveform visualizer pulsing with real-time mic amplitude.
-- **Dynamic Readouts**: Active buffer duration (`07:42 / 10:00 filled`), RAM footprint meter, and audio format pill.
-- **Controls**: Ergonomic Start/Stop Listening toggle and one-tap retroactive capture buttons.
-- **Battery Optimization Banner**: Guidance card with 1-tap redirect to exempt app from OEM Doze restrictions.
-- **Recordings History & Audio Player**:
-  - Saved recordings list sorted newest first.
-  - In-line audio player with Play/Pause, scrubber slider, and time indicators.
-  - One-tap Android Share Sheet integration via `FileProvider`.
-  - Delete with confirmation dialog.
+| Parameter | Specification | Notes |
+| :--- | :--- | :--- |
+| **Sampling Rate** | 16,000 Hz (16 kHz) | Optimal benchmark for speech recognition & transcription |
+| **Bit Depth** | 16-bit Linear PCM | High dynamic range, low CPU overhead |
+| **Channels** | 1 (Mono) | Lightweight memory footprint |
+| **Data Rate** | 32,000 bytes/sec | $16{,}000 \times 2 \text{ bytes} = 32\text{ KB/s}$ |
+| **5-Minute Slice** | 9,600,000 bytes | ~9.15 MB in RAM |
+| **10-Minute Buffer** | 19,200,000 bytes | ~18.31 MB in RAM (strict cap) |
+| **Export Format** | Uncompressed RIFF/WAVE | Standard 44-byte header prepended on write |
 
 ---
 
-## Project Structure
+## 🚀 Use Cases: Why You'll Love This
+
+- 🎙️ **Spontaneous Brainstorms & Commuting**: Talk aloud in your car or during walks. If you land on a brilliant thought, tap "Save Last 5 Min" from your lock screen.
+- 💻 **Engineers & Whiteboarding**: Never stop a flowing technical conversation to say *"Hold on, let me start recording"*. Just save it after the breakthrough happens.
+- 📝 **Interviews, Meetings & Verbal Agreements**: Keep an invisible safety net for spoken action items, requirements, or client instructions.
+- 🤖 **AI Transcription Feeder**: Drop the generated `.wav` straight into your favorite transcription or summarization pipeline.
+
+---
+
+## 🛠️ Perfect Template for Your Own Projects
+
+Backtrack is architected as a clean, modular open-source template. You can easily fork it to build:
+- **On-Device AI Memory Agent**: Hook local speech-to-text (e.g. Whisper.tflite / ONNX / Gemini Nano) into the RAM buffer for automated rolling summarization.
+- **Wearable / Dashcam Companion**: Adapt the circular audio buffer logic for dashcams, smart glasses, or IoT audio recorders.
+- **Audio Surveillance / Wildlife Monitoring**: Trigger exports on acoustic activity detection or ML sound classification.
+
+---
+
+## 📂 Project Structure
 
 ```
 app/src/main/java/com/melonapp/an_rewind_recorder/
 ├── audio/
-│   ├── AudioConstants.kt          # Spec constants (16kHz, buffer calculations)
-│   ├── AudioRingBuffer.kt         # Thread-safe rolling RAM buffer
-│   └── WavExporter.kt             # RIFF/WAV header synthesis and file writer
+│   ├── AudioConstants.kt          # Spec constants (16kHz, buffer math)
+│   ├── AudioRingBuffer.kt         # Thread-safe rolling RAM circular buffer
+│   └── WavExporter.kt             # RIFF/WAV header encoder & file persistence
 ├── service/
-│   ├── BacktrackService.kt        # Foreground mic service, wake lock & audio focus
+│   ├── BacktrackService.kt        # Foreground mic service, WakeLock & AudioFocus
 │   └── BacktrackState.kt          # Reactive StateFlow communication bridge
 ├── util/
-│   ├── AudioPlayerManager.kt      # MediaPlayer controller for inline playback & seeking
-│   ├── BatteryOptimizationHelper.kt # Doze mode exemption handler
-│   ├── NotificationHelper.kt      # Ongoing lock-screen notification & actions
-│   ├── RecordingsRepository.kt    # Storage indexing, metadata, and FileProvider sharing
-│   └── VibrationHelper.kt         # Haptic feedback confirmation
+│   ├── AudioPlayerManager.kt      # MediaPlayer controller with scrubbing & seek support
+│   ├── BatteryOptimizationHelper.kt # Doze mode / battery exemption helper
+│   ├── NotificationHelper.kt      # Persistent notification & lock-screen actions
+│   ├── RecordingsRepository.kt    # File indexing, metadata, and FileProvider sharing
+│   └── VibrationHelper.kt         # Haptic confirmation on capture
 └── ui/
-    ├── BacktrackScreen.kt         # Jetpack Compose UI (Dashboard, Player, Controls)
-    └── BacktrackViewModel.kt      # ViewModel orchestrating service & player
+    ├── BacktrackScreen.kt         # Jetpack Compose UI (Dashboard, Waveform, Controls, Player)
+    └── BacktrackViewModel.kt      # ViewModel orchestrating service, repository, and player
 ```
+
+---
+
+## ⚡ Getting Started
+
+### Prerequisites
+- Android Studio Ladybug (or newer)
+- Android SDK 35/36
+- Device or Emulator running Android 11+ (API 30+)
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/an-rewind-recorder.git
+cd an-rewind-recorder
+
+# Run unit tests
+./gradlew testDebugUnitTest
+
+# Build debug APK
+./gradlew assembleDebug
+```
+
+The compiled APK will be located at:
+`app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are very welcome!
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+---
+
+<p align="center">
+  <b>⭐ If you find Backtrack useful as an app or template, please give it a star! ⭐</b>
+</p>
